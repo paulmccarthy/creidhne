@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+
+INSTALL_PATH=./
+IGNORE_NON_EMPTY_INSTALL_PATH=0
+REMOVE_INSTALL_DIR=0
+INCLUDE_PACKAGE_JSON=0
+GIT_REMOTE=
+USAGE="
+Usage: $(basename $0) [OPTIONS]
+
+Options
+  -p <install path>                 The directory to install into. Defaults to current directory.
+  -i                                Ignore non-empty install directory.
+  -r                                Remove all files in install directory. Implies -i.
+  -j                                Include package.json
+  -h                                This help message.
+  -g <remote>                       Configure git remote.
+"
+PACKAGE_JSON="
+{
+  \"name\": \"\",
+  \"version\": \"1.0.0\",
+  \"description\": \"\",
+  \"main\": \"index.js\",
+  \"scripts\": {
+    \"test\": \"mocha --recursive --exit test/tests\",
+    \"test-report\": \"mocha --recursive --exit --reporter xunit test/tests > test/results/test-report.xml\",
+    \"test-unit\": \"mocha --recursive --exit test/tests/unit\",
+    \"test-unit-report\": \"mocha --recursive --exit --reporter xunit test/tests/unit > test/results/test-unit-report.xml\",
+    \"test-integration\": \"mocha --recursive --exit test/tests/integration\",
+    \"test-integration-report\": \"mocha --recursive --exit --reporter xunit test/tests/integration > test/results/test-integration-report.xml\",
+    \"test-e2e\": \"mocha --recursive --exit test/tests/e2e\",
+    \"test-e2e-report\": \"mocha --recursive --exit --reporter xunit test/tests/e2e > test/results/test-e2e-report.xml\",
+    \"test-acceptence\": \"mocha --recursive --exit test/tests/acceptence\",
+    \"test-acceptence-report\": \"mocha --recursive --exit --reporter xunit test/tests/acceptence > test/results/test-acceptence-report.xml\"
+  },
+  \"repository\": {
+    \"type\": \"git\",
+    \"url\": \"\"
+  },
+  \"keywords\": [],
+  \"author\": \"\",
+  \"license\": \"ISC\",
+  \"bugs\": {
+    \"url\": \"\"
+  },
+  \"homepage\": \"\"
+}
+"
+
+function usage() {
+    echo "$USAGE"
+    exit 0
+}
+
+function error() {
+    echo "$USAGE"
+    exit 1
+}
+
+function checkResult() {
+    if [ $1 -ne 0 ]; then
+        echo -ne "\nCommand failed: $2.\n"
+        exit 1
+    else
+        echo "done."
+    fi
+}
+
+# check options
+while getopts ":p:g:irj" opt; do
+    case ${opt} in
+        p )
+            INSTALL_PATH=$OPTARG
+            ;;
+        i )
+            IGNORE_NON_EMPTY_INSTALL_PATH=1
+            ;;
+        r )
+            REMOVE_INSTALL_DIR=1
+            ;;
+        j )
+            INCLUDE_PACKAGE_JSON=1
+            ;;
+        g )
+            GIT_REMOTE=$OPTARG
+            ;;
+        \? )
+            echo "Invalid Option: -$OPTARG" 1>&2
+            error
+            ;;
+        : )
+            echo "Invalid Option: -$OPTARG requires an argument" 1>&2
+            error
+            ;;
+    esac
+done
+shift $((OPTIND -1))
+
+# check that the directory is empty - don't remove current directory
+if [[ ${INSTALL_PATH} != "./" ]] || [[ ${INSTALL_PATH} != "." ]]; then
+    if [ $REMOVE_INSTALL_DIR -eq 1 ]; then
+        echo -ne "Removing install directory..."
+        RESULT=$(rm -rf "${INSTALL_PATH}" 2>&1)
+        ERRCODE=$?
+        checkResult ${ERRCODE} "${RESULT}"
+    fi
+else
+    echo "Cannot remove ${INSTALL_PATH}."
+    echo "Exiting."
+    exit 1
+fi
+
+if [ $IGNORE_NON_EMPTY_INSTALL_PATH -eq 0 ]; then
+    shopt -s nullglob dotglob
+    files=(${INSTALL_PATH}/*)
+    shopt -u nullglob
+
+    if [ ${#files[0]} -gt 0 ]; then
+        echo "${INSTALL_PATH} is not empty."
+        echo "Exiting."
+        exit 1
+    fi
+fi
+
+# store the current directory
+PWD=`pwd`
+
+# create directory
+echo -ne "Creating directory ${INSTALL_PATH}..."
+RESULT=$(mkdir -p "${INSTALL_PATH}" 2>&1)
+ERRCODE=$?
+checkResult ${ERRCODE} "${RESULT}"
+
+cd ${INSTALL_PATH}
+
+# create base directories
+echo -ne "Creating base directories..."
+RESULT=$(mkdir -p test/{helpers,results,tests/{unit,integration,e2e,acceptence}} build config lib 2>&1)
+ERRCODE=$?
+checkResult ${ERRCODE} "${RESULT}"
+
+# create base empty files
+echo -ne "Creating files..."
+RESULT=$(touch index.js \
+Makefile \
+README \
+test/results/.gitkeep \
+test/helpers/.gitkeep \
+test/tests/unit/unit.spec.js \
+test/tests/integration/integration.spec.js \
+test/tests/e2e/e2e.spec.js \
+test/tests/acceptence/acceptence.spec.js \
+build/Dockerfile \
+build/Jenkinsfile \
+build/unit.Dockerfile \
+build/integration.Dockerfile \
+build/e2e.Dockerfile \
+build/acceptence.Dockerfile \
+build/docker-compose-integration.yml \
+build/docker-compose-unit.yml \
+build/docker-compose-e2e.yml \
+build/docker-compose-acceptence.yml \
+build/npmrcfile \
+config/custom-environment-variables.json \
+config/default.json \
+lib/.gitkeep
+2>&1)
+ERRCODE=$?
+checkResult ${ERRCODE} "${RESULT}"
+
+# init git
+if [ ${#GIT_REMOTE} -gt 0 ]; then
+    echo -ne "Initialising git..."
+    RESULT=$(git init 2>&1)
+    ERRCODE=$?
+    checkResult ${ERRCODE} "${RESULT}"
+
+    echo -ne "Adding git remote..."
+    RESULT=$(git remote add origin "${GIT_REMOTE}" 2>&1)
+    ERRCODE=$?
+    checkResult ${ERRCODE} "${RESULT}"
+fi
+
+# create base package.json
+# this will be updated later
+if [ ${INCLUDE_PACKAGE_JSON} -eq 1 ]; then
+    echo -ne "Creating package.json..."
+    RESULT=$(echo "$PACKAGE_JSON" > package.json 2>&1)
+    ERRCODE=$?
+    checkResult $ERRCODE "${RESULT}"
+
+    # init npm
+    echo -ne "Initialising npm..."
+    RESULT=$(npm init -y 2>&1)
+    ERRCODE=$?
+    checkResult ${ERRCODE} "${RESULT}"
+fi
