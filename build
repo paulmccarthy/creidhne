@@ -14,7 +14,7 @@ Options
   -r                                Remove all files in install directory. Implies -i.
   -j                                Include package.json
   -h                                This help message.
-  -g <remote>                       Configure git remote.
+  -g <remote>                       Initialise git and configure remote.
 "
 PACKAGE_JSON="
 {
@@ -68,7 +68,12 @@ function checkResult() {
 }
 
 # check options
-while getopts ":p:g:irj" opt; do
+if [ $# -eq 0 ]; then
+    echo "Missing parameters."
+    usage
+fi
+
+while getopts ":p:g:hijr" opt; do
     case ${opt} in
         p )
             INSTALL_PATH=$OPTARG
@@ -84,6 +89,10 @@ while getopts ":p:g:irj" opt; do
             ;;
         g )
             GIT_REMOTE=$OPTARG
+            ;;
+        h )
+            usage
+            exit 0
             ;;
         \? )
             echo "Invalid Option: -$OPTARG" 1>&2
