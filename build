@@ -153,7 +153,7 @@ checkResult ${ERRCODE} "${RESULT}"
 echo -ne "Creating files..."
 RESULT=$(touch index.js \
 Makefile \
-README \
+README.md \
 test/results/.gitkeep \
 test/helpers/.gitkeep \
 test/tests/unit/unit.spec.js \
