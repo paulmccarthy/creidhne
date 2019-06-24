@@ -204,4 +204,16 @@ if [ ${INCLUDE_PACKAGE_JSON} -eq 1 ]; then
     RESULT=$(npm init -y 2>&1)
     ERRCODE=$?
     checkResult ${ERRCODE} "${RESULT}"
+
+    # install production node packages
+    echo -ne "Installing required production node packages..."
+    RESULT=$(npm i -P config 2>&1)
+    ERRCODE=$?
+    checkResult ${ERRCODE} "${RESULT}"
+
+    # install development node packages
+    echo -ne "Installing required development node packages..."
+    RESULT=$(npm i -D mocha chai 2>&1)
+    ERRCODE=$?
+    checkResult ${ERRCODE} "${RESULT}"
 fi
